@@ -1,0 +1,67 @@
+pipeline {
+    agent { label 'Slave1' }
+    stages {
+        stage('cloning') {
+            steps {
+                git url:'https://github.com/wakaleo/game-of-life.git'
+            }
+        }
+        stage('build') {
+            steps {
+                sh '''
+                mvn clean install
+                '''
+        }
+        }
+        stage('publish') {
+            steps {
+                archiveArtifacts artifacts: '**/target/*.war'
+            }
+        }
+        stage('jfrog-server') {
+            steps {
+                rtServer (
+                    id: "artifactory",
+                    url: 'http://18.218.97.212:8082/artifactory/mavenrepo/',
+                    username: 'admin',
+                    password: 'Reset123',
+                    bypassProxy: false,
+                    timeout: 300
+                    )
+            }
+        }
+        stage('upload') {
+            steps {
+                rtUpload (
+                    serverId:"artifactory",
+                    spec: '''{
+                        "files": [
+                           {
+                           "pattern": "*.war",
+                           "target": "mavenrepo-${JOB_NAME}-${BUILD_ID}"
+                           }
+                        ]
+                    }''',
+                    )
+            }
+        }
+        stage('publish build info') {
+            steps {
+                rtPublishBuildInfo (
+                    serverId: "artifactory"
+                    )
+            }
+        }
+        stage('deploy') {
+            steps {
+                sh '''
+                sudo cp gameoflife-web/target/*.war /var/lib/tomcat/webapps
+                '''
+            }
+        }
+        
+            
+     
+        
+    }
+}
