@@ -1,0 +1,60 @@
+pipeline {
+    agent { label 'java-s1' }
+    stages {
+        stage('cloning') {
+            steps {
+                git url:'https://github.com/yugandhar12345/gameoflife.git'
+            }
+        }
+        stage('build') {
+            
+            steps {
+                sh "mvn clean install"
+            }
+        }
+        stage('publish') {
+            steps {
+                archiveArtifacts artifacts: '**/target/*.war'
+            }
+        }
+        stage('jfrog-server') {
+            steps {
+                rtServer (
+                    id: "artifactory",
+                    url: 'http://3.135.194.27:8082/artifactory/gameoflife/',
+                    username: 'admin',
+                    password: 'Reset123',
+                    bypassProxy: false,
+                    timeout: 300
+                    )
+            }
+        }
+        stage('upload') {
+            steps {
+                rtUpload (
+                    serverId:"artifactory",
+                    spec: '''{
+                        "files": [
+                           {
+                           "pattern": "*.war",
+                           "target": "mavenrepo-${JOB_NAME}-${BUILD_ID}"
+                           }
+                        ]
+                    }''',
+                    )
+            }
+        }
+        stage('publish build info') {
+            steps {
+                rtPublishBuildInfo (
+                    serverId: "artifactory"
+                    )
+            }
+        }
+        stage('deploy') {
+            steps {
+                deploy adapters: [tomcat9(credentialsId: 'tomcat-cred01', path: '', url: 'http://3.133.147.230:8080/')], contextPath: 'gameoflife', war: 'gameoflife-web/target/*.war'
+            }
+        }
+    }
+}
